@@ -1,6 +1,7 @@
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, GenerationConfig
-from fastapi import FastAPI
+from transformers import AutoModelForCausalLM, AutoTokenizer, GenerationConfig, AutoModelForSpeechSeq2Seq, \
+    AutoProcessor, pipeline
+from fastapi import FastAPI, UploadFile,File
 
 app = FastAPI()
 
@@ -33,6 +34,32 @@ generation_config = GenerationConfig.from_pretrained(MODEL_NAME)
 
 
 
+model_id = "openai/whisper-large-v3-turbo"
+
+speech_model= AutoModelForSpeechSeq2Seq.from_pretrained( model_id, torch_dtype=torch_dtype, low_cpu_mem_usage=True, use_safetensors=True)
+
+speech_model.to(device)
+processor = AutoProcessor.from_pretrained(model_id)
+
+
+pipe = pipeline(
+        "automatic-speech-recognition",
+        model=speech_model,
+        tokenizer=processor.tokenizer,
+        feature_extractor=processor.feature_extractor,
+        chunk_length_s=30,
+        batch_size=16,
+        torch_dtype=torch_dtype,
+        device=device,
+)
+
+print(f"Пайп лайн для нейросети 2 был успешно установлен")
+
+
+
+
+
+
 @app.get("/summarization/{question}")
 def processing(question):
 
@@ -56,3 +83,12 @@ def processing(question):
         print(f"Ответ на поставленный вопрос: {output}")
 
         return {"result":output}
+
+@app.post("/trans/{file}")
+def translate(file: UploadFile = File(...)):
+
+    result = pipe(file)
+
+    return {"result", result['text']}
+
+
